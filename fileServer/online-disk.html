@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>a simple file server</title>
+	<link rel="stylesheet" href="font-awesome-4.7.0/css/font-awesome.min.css">
+	<style>
+		body{
+			width: 80%;
+			height: 100%;
+	    	margin: auto;
+	    	font-size: 14px;
+	    	background-color: #F2F7F7;
+		}
+		
+		a, button{
+			cursor: pointer;
+			text-decoration:none;
+		}
+		button , input, textarea{
+			outline: none;
+		}
+		button{
+			border:none;
+			outline: none;
+			background-color: transparent;
+		}
+
+		header{
+			height: 10%;
+			background-color: #fff;
+			border:1px solid #ddd;
+		}
+
+		section{
+			height: 80px;
+			line-height: 80px;
+		}
+
+		#app{
+			min-width: 700px;
+			max-width: 1000px;
+
+			margin: auto;
+		}
+		.logo{
+			width: 60%;
+			margin-left: 5%;
+			font-size: 26px;
+			cursor: pointer;
+			line-height: 100px;
+			display: inline-block;
+		}
+	
+		main, aside{
+			padding:10px 10px;
+			height: 90%;
+			border:1px solid #ddd;
+			border-width: 1px 1px 0px 1px;
+		}
+
+		.back{
+			font-size: 26px;
+			cursor: pointer;
+			line-height: 60px;			
+		}
+		.noneBtn{
+			display: none;
+		}
+		.displayBtn{
+			display: block;
+		}
+
+		.fileList{
+			margin: 8px 0px;
+		}
+		.fileList:hover{
+			background-color: #fff;
+		}
+		.fileList:hover button{
+			color: red;
+			display: inline-block;
+		}
+		.file{
+			color: green;
+		}
+		.directory{
+			color: #ff5f01;
+		}
+		
+		.uploadFile{
+			width: 50px;
+			height: 50px;
+			border-radius: 50px;
+			background-color: #eee;
+		}
+		.makefile{
+			width: 70px;
+			height: 70px;
+			border-radius: 80px;
+			background-color: #eee;
+		}
+		.mkdir{
+			width: 80px;
+			height: 80px;
+			border-radius: 80px;
+			background-color: #eee;
+		}
+		.uploadBox{
+			width: 300px;
+			height: 100px;
+			top: 30%;
+			left: 30%;
+			right: 30%;
+			text-align: center;
+			margin: auto;
+			position: fixed;
+			display: none;
+			border: 1px solid #aaa;
+			border-radius: 10px;
+			background-color: #fff;
+		}
+		.chdir{
+			width: 50px;
+			height: 30px;
+			background-color: #fff;
+		}
+		#uploadInput{
+			width: 70px;
+			padding: 25px 0 10px;
+			margin: auto; 
+		}
+		#uploadfilename{
+			margin: auto;
+		}
+		#cwd{
+			width: 200px;
+			padding-left: 10px;
+			margin-right: 10px;
+		}
+		#edit{
+			display: none;
+			height: 400px;
+		}
+		#edit .textname{
+			width: 50px;
+			display: block;
+		    float: left;
+		    margin-right: 10px;
+		    text-align-last: justify;
+		}
+		#edit .content{
+		  width: 85%;
+		  margin-top: 10px;
+		  overflow:auto;
+		  min-height:300px;
+		  border: none;
+		  color: #eee;
+		  line-height: 1.5;
+		  overflow-y: auto;
+		  font-size: 16px;
+		  border: 1px solid #aaa;
+		}
+	</style>
+</head>
+<body>
+	<div id="app">
+		<header>
+			<div class="logo">简单网盘</div>
+			<button onclick="uploadFile()" class="uploadFile" type="button">上 传</button>
+			<button onclick="makefile()" class="makefile">创建文件</button>
+			<button onclick="mkdir()" class="mkdir">创建文件夹</button>
+			<div class="uploadBox">
+				<input type="file" id="uploadInput" onChange="changefile()"/>
+				<input type="text" id="uploadfilename" />
+				<div>
+					<button onclick="upload()">确 定</button>
+					<button onclick="closed()">关 闭</button>
+				</div>
+			</div>
+		</header>
+		<section>
+			当前路径：
+			<input id="cwd" type="text" value="/" />
+			<button onclick="chdir()" id="btn" class="chdir">确 定</button>
+		</section>
+
+		<main id="ls"></main>
+		<aside id="edit">
+			<div>
+				<label class="textname">文件名</label>
+			 	<input type="text" id="filename" />
+			</div>
+			<div>
+				<label class="textname">内 容</label>
+				<textarea class="content"></textarea> 
+			</div>
+			<button onclick="mkfile()" class="chdir">创 建</button>
+		</aside>
+	</div>
+
+	<script>
+		//声明变量
+		let baseUrl = 'http://localhost:8000'
+
+		var cwd = document.getElementById('cwd')
+		var btn = document.getElementById('btn')
+
+		var main = document.querySelector('main')
+		var aside = document.querySelector('aside')
+
+		var uploadBox = document.querySelector('.uploadBox')
+
+		var uploadInput = document.getElementById('uploadInput')
+		var uploadfilename = document.getElementById('uploadfilename')
+
+		var filename = document.getElementById('filename')
+		var content = document.querySelector('.content')
+
+
+		function changefile (){
+			uploadfilename.value = uploadInput.files[0].name
+		}
+
+		function uploadFile(){
+			uploadBox.style.display = 'block'
+		}	
+
+		function closed(){
+			uploadBox.style.display = 'none'
+		}
+
+		function makefile(){
+			main.style.display = 'none'
+			aside.style.display = 'block'
+		}
+		/**
+		* 数据处理
+		* 获取、删除、 显示
+		* 上传、 创建
+		*/
+
+
+		//获取数据
+		function get(url){
+			return new Promise( resolve =>{
+				var xhr = new XMLHttpRequest()
+				xhr.open('GET', baseUrl + url)
+				xhr.onload= () =>{
+					resolve(xhr.responseText)
+				}
+				xhr.send()
+			})
+		}
+
+		//删除数据
+		function del(url){
+			return new Promise( resolve =>{
+				var xhr = new XMLHttpRequest()
+				xhr.open('DELETE', baseUrl + url)
+				xhr.onload= () =>{
+					resolve(xhr.responseText)
+				}
+				xhr.send()
+			})
+		}
+
+		//展示目录
+		async function chdir(){
+			var path = cwd.value
+			var files = await get(path)
+
+			var html = ''
+			if( path !== '/' ){
+
+				html = '<span id="back" class="back" placeholder="上级目录">...</span>'
+			}
+			html += `
+				${files.split('\n').map(it =>{
+					return `
+						<div class="fileList">
+							<a href="${it}" class="${it.endsWith('/') == true ? 'directory' : 'file'}">${it}</a>
+							<button class="noneBtn"> 删除 </button>
+						</div>
+					`
+				}).join('')
+			}
+			`
+			document.getElementById('ls').innerHTML = html
+		}
+
+		chdir()
+
+		//目录点击事件
+		main.addEventListener('click', e=>{
+			e.preventDefault()
+
+			var el = e.target
+			var path = el.textContent
+
+			if( el.matches( 'a') ){
+				//下一目录
+				if( path.endsWith('/') ){
+					cwd.value += path
+					chdir()
+				}else{
+					window.open( baseUrl + cwd.value + path )
+				}
+			}
+
+			//按钮
+			if( el.matches('button') ){
+				var path = cwd.value + el.previousElementSibling.textContent
+				del(path).then( () =>{
+					btn.click()
+				})
+			}
+
+			//返回上层目录
+			if( el.matches('span') ){
+				var path = cwd.value 
+				var ping = path.split('/')
+				var url = path.slice(0, path.length - ping[ping.length -2].length -1 )
+				cwd.value = url
+				console.log('back', url)
+				chdir()
+			}
+		})
+
+
+		//上传
+		function upload(){
+			var path = cwd.value + uploadfilename.value
+			console.log(path)
+
+			var fr= new FileReader()
+			fr.onload = () =>{
+				var xhr = new XMLHttpRequest()
+				xhr.open('PUT', baseUrl + path)
+				xhr.onload= () =>{
+					btn.click()
+				}
+				xhr.send(fr.result)
+			}
+			fr.readAsArrayBuffer(uploadInput.files[0])
+			uploadBox.style.display = 'none'
+		}
+
+
+		//创建文件夹
+		function mkdir(){
+			var name = prompt('请输入文件夹名字')
+			var path = cwd.value + name
+
+			var xhr = new XMLHttpRequest()
+			xhr.open('MKCOL', baseUrl + path)
+			xhr.onload= () =>{
+				btn.click()
+			}
+			xhr.send()
+		}
+
+
+		//创建文件
+		function mkfile(){
+			var nanameme = filename.value
+			var text= content.value
+
+			var path = cwd.value + name
+
+			var element = document.createElement('a');
+		      element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(text));
+		      element.setAttribute('download', filename);
+
+		      element.style.display = 'none';
+		      document.body.appendChild(element);
+
+		      element.click();
+
+		      document.body.removeChild(element);
+
+			var xhr = new XMLHttpRequest()
+			xhr.open('MKFILE', baseUrl + path)
+			xhr.onload= () =>{
+				btn.click()
+			}
+			xhr.send()
+		}
+
+	</script>
+</body>
+</html>
